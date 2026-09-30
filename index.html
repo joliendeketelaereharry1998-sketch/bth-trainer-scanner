@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1"
+  >
+
+  <title>BTH Trainer Scanner</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      color: #222;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 22px;
+      border-radius: 18px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.12);
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 0;
+    }
+
+    .uitleg {
+      text-align: center;
+      color: #666;
+      margin-bottom: 25px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 15px;
+      font-size: 18px;
+      border: 1px solid #bbb;
+      border-radius: 10px;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 15px;
+      border: 0;
+      border-radius: 10px;
+      background: #222;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #scannerScherm {
+      display: none;
+      text-align: center;
+    }
+
+    .trainerLabel {
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .trainerNaam {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    #camera {
+      width: 100%;
+      border-radius: 14px;
+      background: #111;
+      min-height: 280px;
+    }
+
+    .status {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 10px;
+      background: #e8e8e8;
+    }
+
+    .wijzig {
+      background: #ddd;
+      color: #222;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="card">
+
+    <h1>BTH Trainer Scanner</h1>
+
+    <!-- TRAINERNAAM -->
+
+    <div id="loginScherm">
+
+      <div class="uitleg">
+        Identificeer jezelf voordat je leden scant.
+      </div>
+
+      <label for="trainerNaam">
+        Voornaam en naam
+      </label>
+
+      <input
+        id="trainerNaam"
+        type="text"
+        placeholder="bv. Ulricke Beuselinck"
+        autocomplete="name"
+      >
+
+      <button onclick="bewaarTrainer()">
+        START SCANNER
+      </button>
+
+    </div>
+
+
+    <!-- CAMERA -->
+
+    <div id="scannerScherm">
+
+      <div class="trainerLabel">
+        Ingelogde trainer
+      </div>
+
+      <div
+        class="trainerNaam"
+        id="actieveTrainer">
+      </div>
+
+      <video
+        id="camera"
+        autoplay
+        playsinline
+        muted>
+      </video>
+
+      <div
+        class="status"
+        id="status">
+        Camera wordt gestart...
+      </div>
+
+      <button
+        class="wijzig"
+        onclick="wijzigTrainer()">
+        Andere trainer
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+const TRAINER_STORAGE =
+  "bth_trainerNaam_v9";
+
+let cameraStream = null;
+
+
+/* ===============================
+   TRAINER
+================================ */
+
+function bewaarTrainer() {
+
+  const naam =
+    document
+      .getElementById("trainerNaam")
+      .value
+      .trim();
+
+  if (!naam) {
+
+    alert(
+      "Vul eerst je voornaam en naam in."
+    );
+
+    return;
+  }
+
+  localStorage.setItem(
+    TRAINER_STORAGE,
+    naam
+  );
+
+  toonScanner(naam);
+}
+
+
+function toonScanner(naam) {
+
+  document
+    .getElementById("loginScherm")
+    .style.display = "none";
+
+  document
+    .getElementById("scannerScherm")
+    .style.display = "block";
+
+  document
+    .getElementById("actieveTrainer")
+    .textContent = naam;
+
+  startCamera();
+}
+
+
+async function wijzigTrainer() {
+
+  stopCamera();
+
+  localStorage.removeItem(
+    TRAINER_STORAGE
+  );
+
+  document
+    .getElementById("scannerScherm")
+    .style.display = "none";
+
+  document
+    .getElementById("loginScherm")
+    .style.display = "block";
+
+  document
+    .getElementById("trainerNaam")
+    .value = "";
+}
+
+
+/* ===============================
+   CAMERA TEST
+================================ */
+
+async function startCamera() {
+
+  const status =
+    document.getElementById("status");
+
+  status.textContent =
+    "Camera wordt gestart...";
+
+  try {
+
+    cameraStream =
+      await navigator.mediaDevices.getUserMedia({
+
+        video: {
+          facingMode: {
+            ideal: "environment"
+          }
+        },
+
+        audio: false
+      });
+
+
+    const video =
+      document.getElementById("camera");
+
+    video.srcObject =
+      cameraStream;
+
+    await video.play();
+
+
+    status.textContent =
+      "✓ Camera werkt. QR-scanner volgt in de volgende stap.";
+
+
+  } catch (fout) {
+
+    console.error(fout);
+
+    status.innerHTML =
+      "<strong>Camera kon niet worden geopend.</strong><br><br>" +
+      "Technische fout: " +
+      veilig(
+        (fout.name || "") +
+        " - " +
+        (fout.message || String(fout))
+      );
+  }
+}
+
+
+function stopCamera() {
+
+  if (cameraStream) {
+
+    cameraStream
+      .getTracks()
+      .forEach(function(track) {
+        track.stop();
+      });
+
+    cameraStream = null;
+  }
+}
+
+
+/* ===============================
+   VEILIGE TEKST
+================================ */
+
+function veilig(tekst) {
+
+  const div =
+    document.createElement("div");
+
+  div.textContent =
+    String(tekst || "");
+
+  return div.innerHTML;
+}
+
+
+/* ===============================
+   START
+================================ */
+
+window.addEventListener(
+  "load",
+  function() {
+
+    const bestaandeNaam =
+      localStorage.getItem(
+        TRAINER_STORAGE
+      );
+
+    if (bestaandeNaam) {
+      toonScanner(bestaandeNaam);
+    }
+  }
+);
+
+</script>
+
+</body>
+</html>
