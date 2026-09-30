@@ -197,6 +197,10 @@
       color: #222;
       font-size: 14px;
     }
+    .beurtActie { margin-top:18px; padding-top:16px; border-top:1px solid #ddd; }
+    .beurtActie input { margin-top:8px; text-align:center; }
+    .beurtKnop { background:#155724; }
+    .actieMelding { margin-top:12px; font-weight:bold; line-height:1.4; }
   </style>
 
 </head>
@@ -904,82 +908,58 @@ function vraagLidOp(row) {
 
 function toonLid(lid) {
 
-  const status =
-    document.getElementById(
-      "status"
-    );
-
-
-  /*
-    Voor deze eerste test:
-    'Nog geen betaling ontvangen'
-    krijgt rood.
-
-    We registreren of mailen hier
-    bewust nog NIETS.
-  */
+  const status = document.getElementById("status");
 
   const nietBetaald =
-    String(
-      lid.geldigheid || ""
-    )
+    String(lid.geldigheid || "")
       .toLowerCase()
-      .includes(
-        "nog geen betaling ontvangen"
-      );
+      .includes("nog geen betaling ontvangen");
 
-
-  if (nietBetaald) {
-
-    status.className =
-      "status fout";
-
-  } else {
-
-    status.className =
-      "status gevonden";
-  }
-
+  status.className =
+    nietBetaald
+      ? "status fout"
+      : "status gevonden";
 
   let html = "";
 
-
   html +=
     '<div class="lidnummer">' +
-      veilig(
-        lid.lidnummer
-      ) +
+      veilig(lid.lidnummer) +
     '</div>';
-
 
   html +=
     '<div class="lidnaam">' +
-      veilig(
-        lid.volledigeNaam
-      ) +
+      veilig(lid.volledigeNaam) +
     '</div>';
-
 
   html +=
     '<div class="regel">' +
       '<span class="label">Type:</span> ' +
-      veilig(
-        lid.type
-      ) +
+      veilig(lid.type) +
     '</div>';
 
-
-  if (
-    lid.type ===
-    "Beurtenkaart"
-  ) {
+  if (lid.type === "Beurtenkaart") {
 
     html +=
       '<div class="regel">' +
         '<span class="label">Resterende beurten:</span> ' +
-        veilig(
-          lid.beurten
-        ) +
+        veilig(lid.beurten) +
+      '</div>';
+
+    html +=
+      '<div class="regel">' +
+        '<span class="label">Vervaldatum:</span> ' +
+        veilig(lid.vervaldatum || "Niet ingevuld") +
+      '</div>';
+
+    html +=
+      '<div class="beurtActie">' +
+        '<div class="label">Trainer code</div>' +
+        '<input id="trainerCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Trainer code">' +
+        '<button id="beurtKnop" class="beurtKnop" onclick="trekBeurtAf(' +
+          Number(lid.row) +
+        ')">1 BEURT AFTREKKEN</button>' +
+        '<div id="actieMelding" class="actieMelding"></div>' +
       '</div>';
 
   } else {
@@ -987,33 +967,199 @@ function toonLid(lid) {
     html +=
       '<div class="regel">' +
         '<span class="label">Geldigheid:</span> ' +
-        veilig(
-          lid.geldigheid ||
-          "Niet ingevuld"
-        ) +
+        veilig(lid.geldigheid || "Niet ingevuld") +
       '</div>';
   }
 
-
   if (nietBetaald) {
-
     html +=
       '<div class="regel" style="margin-top:14px;font-weight:bold;">' +
         '⚠ Nog geen betaling ontvangen.' +
       '</div>';
   }
 
-
-  status.innerHTML =
-    html;
-
+  status.innerHTML = html;
 
   document
-    .getElementById(
-      "volgendKnop"
-    )
-    .style.display =
-      "block";
+    .getElementById("volgendKnop")
+    .style.display = "block";
+}
+
+
+/* =====================================================
+   BEURT AFTREKKEN
+===================================================== */
+
+function trekBeurtAf(row) {
+
+  const codeVeld =
+    document.getElementById("trainerCode");
+
+  const knop =
+    document.getElementById("beurtKnop");
+
+  const melding =
+    document.getElementById("actieMelding");
+
+  const code =
+    codeVeld
+      ? codeVeld.value.trim()
+      : "";
+
+  const trainerNaam =
+    localStorage.getItem(TRAINER_STORAGE) || "";
+
+  if (!trainerNaam.trim()) {
+    melding.textContent =
+      "Trainer niet geïdentificeerd.";
+    return;
+  }
+
+  if (!code) {
+    melding.textContent =
+      "Vul eerst de trainer code in.";
+
+    if (codeVeld) {
+      codeVeld.focus();
+    }
+
+    return;
+  }
+
+  if (knop) {
+    knop.disabled = true;
+    knop.textContent = "BEZIG...";
+  }
+
+  melding.textContent =
+    "Beurt verwerken...";
+
+  jsonpTeller++;
+
+  const callbackNaam =
+    "bthBeurtCallback_" +
+    Date.now() +
+    "_" +
+    jsonpTeller;
+
+  let afgehandeld = false;
+
+  const script =
+    document.createElement("script");
+
+  function opruimen() {
+
+    if (script.parentNode) {
+      script.parentNode.removeChild(script);
+    }
+
+    try {
+      delete window[callbackNaam];
+    } catch (fout) {
+      window[callbackNaam] = undefined;
+    }
+  }
+
+  function herstelKnop() {
+
+    if (knop) {
+      knop.disabled = false;
+      knop.textContent = "1 BEURT AFTREKKEN";
+    }
+  }
+
+  window[callbackNaam] =
+    function(resultaat) {
+
+      if (afgehandeld) {
+        return;
+      }
+
+      afgehandeld = true;
+      opruimen();
+
+      if (!resultaat || resultaat.ok !== true) {
+
+        herstelKnop();
+
+        melding.textContent =
+          resultaat && resultaat.fout
+            ? resultaat.fout
+            : "Beurt kon niet worden afgetrokken.";
+
+        return;
+      }
+
+      melding.innerHTML =
+        '✓ Beurt afgetrokken.<br>' +
+        'Resterende beurten: <strong>' +
+        veilig(resultaat.resterend) +
+        '</strong>';
+
+      if (codeVeld) {
+        codeVeld.value = "";
+        codeVeld.disabled = true;
+      }
+
+      if (knop) {
+        knop.style.display = "none";
+      }
+
+      setTimeout(
+        function() {
+          startCamera();
+        },
+        1500
+      );
+    };
+
+  script.onerror =
+    function() {
+
+      if (afgehandeld) {
+        return;
+      }
+
+      afgehandeld = true;
+      opruimen();
+      herstelKnop();
+
+      melding.textContent =
+        "Verbinding mislukt. Er werd geen bevestiging ontvangen.";
+    };
+
+  script.src =
+    API_URL +
+    "?api=beurt" +
+    "&row=" +
+    encodeURIComponent(row) +
+    "&code=" +
+    encodeURIComponent(code) +
+    "&trainerNaam=" +
+    encodeURIComponent(trainerNaam) +
+    "&callback=" +
+    encodeURIComponent(callbackNaam) +
+    "&_=" +
+    Date.now();
+
+  document.body.appendChild(script);
+
+  setTimeout(
+    function() {
+
+      if (afgehandeld) {
+        return;
+      }
+
+      afgehandeld = true;
+      opruimen();
+      herstelKnop();
+
+      melding.textContent =
+        "Geen antwoord ontvangen. Controleer eerst het aantal beurten in het ledenbestand voordat je opnieuw probeert.";
+    },
+    10000
+  );
 }
 
 
