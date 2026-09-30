@@ -12,7 +12,6 @@
 
   <title>BTH Trainer Scanner</title>
 
-  <!-- QR herkenning -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <style>
@@ -75,6 +74,11 @@
       font-size: 18px;
       font-weight: bold;
       cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
     }
 
     #scannerScherm {
@@ -197,10 +201,26 @@
       color: #222;
       font-size: 14px;
     }
-    .beurtActie { margin-top:18px; padding-top:16px; border-top:1px solid #ddd; }
-    .beurtActie input { margin-top:8px; text-align:center; }
-    .beurtKnop { background:#155724; }
-    .actieMelding { margin-top:12px; font-weight:bold; line-height:1.4; }
+
+    .beurtActie {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(0,0,0,0.12);
+    }
+
+    .beurtActie label {
+      margin-top: 10px;
+    }
+
+    .beurtKnop {
+      background: #222;
+    }
+
+    .actieMelding {
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
   </style>
 
 </head>
@@ -215,9 +235,7 @@
     <h1>BTH Trainer Scanner</h1>
 
 
-    <!-- =====================================
-         TRAINER
-    ====================================== -->
+    <!-- TRAINER -->
 
     <div id="loginScherm">
 
@@ -243,9 +261,7 @@
     </div>
 
 
-    <!-- =====================================
-         SCANNER
-    ====================================== -->
+    <!-- SCANNER -->
 
     <div id="scannerScherm">
 
@@ -323,6 +339,7 @@ const TRAINER_STORAGE =
 const API_URL =
   "https://script.google.com/macros/s/AKfycbymCwS5CKRtUK7Vl0e7Gx_C3EWIhsUa-JSXGFDG8hjt2gl1u7Q_ew8WqkO24XAMevui/exec";
 
+
 let cameraStream = null;
 
 let scannerActief = false;
@@ -330,6 +347,12 @@ let scannerActief = false;
 let qrVerwerkt = false;
 
 let jsonpTeller = 0;
+
+let huidigLid = null;
+
+let huidigLidGeregistreerd = false;
+
+let actieBezig = false;
 
 
 /* =====================================================
@@ -425,6 +448,12 @@ async function startCamera() {
 
   qrVerwerkt = false;
 
+  huidigLid = null;
+
+  huidigLidGeregistreerd = false;
+
+  actieBezig = false;
+
 
   const status =
     document.getElementById(
@@ -448,6 +477,12 @@ async function startCamera() {
 
   volgendKnop.style.display =
     "none";
+
+  volgendKnop.disabled =
+    false;
+
+  volgendKnop.textContent =
+    "VOLGEND LID";
 
 
   if (
@@ -742,11 +777,6 @@ function haalRijUitQr(inhoud) {
       new URL(inhoud);
 
 
-    /*
-      Alleen QR-codes met een row parameter
-      worden aanvaard.
-    */
-
     const row =
       Number(
         url.searchParams.get(
@@ -782,27 +812,43 @@ function vraagLidOp(row) {
 
   jsonpTeller++;
 
+
   const callbackNaam =
     "bthLidCallback_" +
     Date.now() +
     "_" +
     jsonpTeller;
 
-  let afgehandeld = false;
+
+  let afgehandeld =
+    false;
+
 
   const script =
-    document.createElement("script");
+    document.createElement(
+      "script"
+    );
+
 
   function opruimen() {
 
     if (script.parentNode) {
-      script.parentNode.removeChild(script);
+      script.parentNode.removeChild(
+        script
+      );
     }
 
     try {
-      delete window[callbackNaam];
+
+      delete window[
+        callbackNaam
+      ];
+
     } catch (fout) {
-      window[callbackNaam] = undefined;
+
+      window[
+        callbackNaam
+      ] = undefined;
     }
   }
 
@@ -814,7 +860,10 @@ function vraagLidOp(row) {
         return;
       }
 
-      afgehandeld = true;
+
+      afgehandeld =
+        true;
+
 
       opruimen();
 
@@ -825,20 +874,30 @@ function vraagLidOp(row) {
       ) {
 
         toonFout(
-          resultaat && resultaat.fout
-            ? veilig(resultaat.fout)
+          resultaat &&
+          resultaat.fout
+            ? veilig(
+                resultaat.fout
+              )
             : "Lidgegevens konden niet worden opgehaald."
         );
 
+
         document
-          .getElementById("volgendKnop")
-          .style.display = "block";
+          .getElementById(
+            "volgendKnop"
+          )
+          .style.display =
+            "block";
+
 
         return;
       }
 
 
-      toonLid(resultaat);
+      toonLid(
+        resultaat
+      );
     };
 
 
@@ -849,17 +908,25 @@ function vraagLidOp(row) {
         return;
       }
 
-      afgehandeld = true;
+
+      afgehandeld =
+        true;
+
 
       opruimen();
+
 
       toonFout(
         "De ledenlijst kon niet worden bereikt. Probeer opnieuw."
       );
 
+
       document
-        .getElementById("volgendKnop")
-        .style.display = "block";
+        .getElementById(
+          "volgendKnop"
+        )
+        .style.display =
+          "block";
     };
 
 
@@ -867,14 +934,20 @@ function vraagLidOp(row) {
     API_URL +
     "?api=lid" +
     "&row=" +
-    encodeURIComponent(row) +
+    encodeURIComponent(
+      row
+    ) +
     "&callback=" +
-    encodeURIComponent(callbackNaam) +
+    encodeURIComponent(
+      callbackNaam
+    ) +
     "&_=" +
     Date.now();
 
 
-  document.body.appendChild(script);
+  document.body.appendChild(
+    script
+  );
 
 
   setTimeout(
@@ -884,17 +957,25 @@ function vraagLidOp(row) {
         return;
       }
 
-      afgehandeld = true;
+
+      afgehandeld =
+        true;
+
 
       opruimen();
+
 
       toonFout(
         "Geen antwoord van de ledenlijst. Probeer opnieuw."
       );
 
+
       document
-        .getElementById("volgendKnop")
-        .style.display = "block";
+        .getElementById(
+          "volgendKnop"
+        )
+        .style.display =
+          "block";
     },
 
     10000
@@ -908,133 +989,247 @@ function vraagLidOp(row) {
 
 function toonLid(lid) {
 
-  const status = document.getElementById("status");
+  huidigLid =
+    lid;
+
+  huidigLidGeregistreerd =
+    false;
+
+  actieBezig =
+    false;
+
+
+  const status =
+    document.getElementById(
+      "status"
+    );
+
 
   const nietBetaald =
-    String(lid.geldigheid || "")
+    String(
+      lid.geldigheid || ""
+    )
       .toLowerCase()
-      .includes("nog geen betaling ontvangen");
+      .includes(
+        "nog geen betaling ontvangen"
+      );
 
-  status.className =
-    nietBetaald
-      ? "status fout"
-      : "status gevonden";
 
-  let html = "";
+  if (nietBetaald) {
+
+    status.className =
+      "status fout";
+
+  } else {
+
+    status.className =
+      "status gevonden";
+  }
+
+
+  let html =
+    "";
+
 
   html +=
     '<div class="lidnummer">' +
-      veilig(lid.lidnummer) +
+      veilig(
+        lid.lidnummer
+      ) +
     '</div>';
+
 
   html +=
     '<div class="lidnaam">' +
-      veilig(lid.volledigeNaam) +
+      veilig(
+        lid.volledigeNaam
+      ) +
     '</div>';
+
 
   html +=
     '<div class="regel">' +
       '<span class="label">Type:</span> ' +
-      veilig(lid.type) +
+      veilig(
+        lid.type
+      ) +
     '</div>';
 
-  if (lid.type === "Beurtenkaart") {
+
+  if (
+    lid.type ===
+    "Beurtenkaart"
+  ) {
 
     html +=
       '<div class="regel">' +
         '<span class="label">Resterende beurten:</span> ' +
-        veilig(lid.beurten) +
+        veilig(
+          lid.beurten
+        ) +
       '</div>';
+
 
     html +=
       '<div class="regel">' +
         '<span class="label">Vervaldatum:</span> ' +
-        veilig(lid.vervaldatum || "Niet ingevuld") +
+        veilig(
+          lid.vervaldatum ||
+          "Niet ingevuld"
+        ) +
       '</div>';
+
 
     html +=
       '<div class="beurtActie">' +
-        '<div class="label">Trainer code</div>' +
-        '<input id="trainerCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Trainer code">' +
-        '<button id="beurtKnop" class="beurtKnop" onclick="trekBeurtAf(' +
-          Number(lid.row) +
-        ')">1 BEURT AFTREKKEN</button>' +
-        '<div id="actieMelding" class="actieMelding"></div>' +
+
+        '<label for="trainerCode">' +
+          'Trainer code' +
+        '</label>' +
+
+        '<input ' +
+          'id="trainerCode" ' +
+          'type="password" ' +
+          'inputmode="numeric" ' +
+          'autocomplete="off" ' +
+          'placeholder="Trainer code"' +
+        '>' +
+
+        '<button ' +
+          'id="beurtKnop" ' +
+          'class="beurtKnop" ' +
+          'onclick="trekBeurtAf(' +
+            Number(
+              lid.row
+            ) +
+          ')">' +
+          '1 BEURT AFTREKKEN' +
+        '</button>' +
+
+        '<div ' +
+          'id="actieMelding" ' +
+          'class="actieMelding">' +
+        '</div>' +
+
       '</div>';
+
 
   } else {
 
     html +=
       '<div class="regel">' +
         '<span class="label">Geldigheid:</span> ' +
-        veilig(lid.geldigheid || "Niet ingevuld") +
+        veilig(
+          lid.geldigheid ||
+          "Niet ingevuld"
+        ) +
       '</div>';
   }
 
+
   if (nietBetaald) {
+
     html +=
       '<div class="regel" style="margin-top:14px;font-weight:bold;">' +
         '⚠ Nog geen betaling ontvangen.' +
       '</div>';
   }
 
-  status.innerHTML = html;
+
+  status.innerHTML =
+    html;
+
 
   document
-    .getElementById("volgendKnop")
-    .style.display = "block";
+    .getElementById(
+      "volgendKnop"
+    )
+    .style.display =
+      "block";
 }
 
 
 /* =====================================================
-   BEURT AFTREKKEN
+   BEURTENKAART AFTREKKEN
 ===================================================== */
 
 function trekBeurtAf(row) {
 
+  if (actieBezig) {
+    return;
+  }
+
+
   const codeVeld =
-    document.getElementById("trainerCode");
+    document.getElementById(
+      "trainerCode"
+    );
+
 
   const knop =
-    document.getElementById("beurtKnop");
+    document.getElementById(
+      "beurtKnop"
+    );
+
 
   const melding =
-    document.getElementById("actieMelding");
+    document.getElementById(
+      "actieMelding"
+    );
+
 
   const code =
     codeVeld
       ? codeVeld.value.trim()
       : "";
 
+
   const trainerNaam =
-    localStorage.getItem(TRAINER_STORAGE) || "";
+    localStorage.getItem(
+      TRAINER_STORAGE
+    ) || "";
+
 
   if (!trainerNaam.trim()) {
+
     melding.textContent =
       "Trainer niet geïdentificeerd.";
+
     return;
   }
 
+
   if (!code) {
+
     melding.textContent =
       "Vul eerst de trainer code in.";
+
 
     if (codeVeld) {
       codeVeld.focus();
     }
 
+
     return;
   }
 
+
+  actieBezig =
+    true;
+
+
   if (knop) {
-    knop.disabled = true;
-    knop.textContent = "BEZIG...";
+    knop.disabled =
+      true;
   }
 
+
   melding.textContent =
-    "Beurt verwerken...";
+    "Beurt wordt verwerkt...";
+
 
   jsonpTeller++;
+
 
   const callbackNaam =
     "bthBeurtCallback_" +
@@ -1042,31 +1237,41 @@ function trekBeurtAf(row) {
     "_" +
     jsonpTeller;
 
-  let afgehandeld = false;
+
+  let afgehandeld =
+    false;
+
 
   const script =
-    document.createElement("script");
+    document.createElement(
+      "script"
+    );
+
 
   function opruimen() {
 
     if (script.parentNode) {
-      script.parentNode.removeChild(script);
+
+      script.parentNode.removeChild(
+        script
+      );
     }
+
 
     try {
-      delete window[callbackNaam];
+
+      delete window[
+        callbackNaam
+      ];
+
     } catch (fout) {
-      window[callbackNaam] = undefined;
+
+      window[
+        callbackNaam
+      ] = undefined;
     }
   }
 
-  function herstelKnop() {
-
-    if (knop) {
-      knop.disabled = false;
-      knop.textContent = "1 BEURT AFTREKKEN";
-    }
-  }
 
   window[callbackNaam] =
     function(resultaat) {
@@ -1075,43 +1280,76 @@ function trekBeurtAf(row) {
         return;
       }
 
-      afgehandeld = true;
+
+      afgehandeld =
+        true;
+
+
       opruimen();
 
-      if (!resultaat || resultaat.ok !== true) {
 
-        herstelKnop();
+      if (
+        !resultaat ||
+        resultaat.ok !== true
+      ) {
+
+        actieBezig =
+          false;
+
+
+        if (knop) {
+          knop.disabled =
+            false;
+        }
+
 
         melding.textContent =
-          resultaat && resultaat.fout
+          resultaat &&
+          resultaat.fout
             ? resultaat.fout
-            : "Beurt kon niet worden afgetrokken.";
+            : "Beurt kon niet worden verwerkt.";
+
 
         return;
       }
 
-      melding.innerHTML =
-        '✓ Beurt afgetrokken.<br>' +
-        'Resterende beurten: <strong>' +
-        veilig(resultaat.resterend) +
-        '</strong>';
+
+      huidigLidGeregistreerd =
+        true;
+
+
+      actieBezig =
+        false;
+
 
       if (codeVeld) {
-        codeVeld.value = "";
-        codeVeld.disabled = true;
+        codeVeld.disabled =
+          true;
       }
 
+
       if (knop) {
-        knop.style.display = "none";
+        knop.style.display =
+          "none";
       }
+
+
+      melding.textContent =
+        "Beurt afgetrokken. Resterend: " +
+        resultaat.resterend;
+
 
       setTimeout(
         function() {
+
           startCamera();
+
         },
+
         1500
       );
     };
+
 
   script.onerror =
     function() {
@@ -1120,29 +1358,61 @@ function trekBeurtAf(row) {
         return;
       }
 
-      afgehandeld = true;
+
+      afgehandeld =
+        true;
+
+
       opruimen();
-      herstelKnop();
+
+
+      actieBezig =
+        false;
+
+
+      if (knop) {
+        knop.disabled =
+          false;
+      }
+
 
       melding.textContent =
-        "Verbinding mislukt. Er werd geen bevestiging ontvangen.";
+        "Geen antwoord ontvangen. Controleer eerst de beurten in het ledenbestand voordat je opnieuw probeert.";
     };
+
 
   script.src =
     API_URL +
     "?api=beurt" +
+
     "&row=" +
-    encodeURIComponent(row) +
+    encodeURIComponent(
+      row
+    ) +
+
     "&code=" +
-    encodeURIComponent(code) +
+    encodeURIComponent(
+      code
+    ) +
+
     "&trainerNaam=" +
-    encodeURIComponent(trainerNaam) +
+    encodeURIComponent(
+      trainerNaam
+    ) +
+
     "&callback=" +
-    encodeURIComponent(callbackNaam) +
+    encodeURIComponent(
+      callbackNaam
+    ) +
+
     "&_=" +
     Date.now();
 
-  document.body.appendChild(script);
+
+  document.body.appendChild(
+    script
+  );
+
 
   setTimeout(
     function() {
@@ -1151,13 +1421,338 @@ function trekBeurtAf(row) {
         return;
       }
 
-      afgehandeld = true;
+
+      afgehandeld =
+        true;
+
+
       opruimen();
-      herstelKnop();
+
+
+      actieBezig =
+        false;
+
+
+      if (knop) {
+        knop.disabled =
+          false;
+      }
+
 
       melding.textContent =
-        "Geen antwoord ontvangen. Controleer eerst het aantal beurten in het ledenbestand voordat je opnieuw probeert.";
+        "Geen antwoord ontvangen. Controleer eerst de beurten in het ledenbestand voordat je opnieuw probeert.";
     },
+
+    10000
+  );
+}
+
+
+/* =====================================================
+   ABONNEMENT REGISTREREN
+===================================================== */
+
+function registreerAbonnementEnGaVerder() {
+
+  if (
+    !huidigLid ||
+    huidigLid.type !==
+      "Abonnement"
+  ) {
+
+    startCamera();
+
+    return;
+  }
+
+
+  if (
+    huidigLidGeregistreerd
+  ) {
+
+    startCamera();
+
+    return;
+  }
+
+
+  if (actieBezig) {
+    return;
+  }
+
+
+  const trainerNaam =
+    localStorage.getItem(
+      TRAINER_STORAGE
+    ) || "";
+
+
+  if (!trainerNaam.trim()) {
+
+    toonFout(
+      "Trainer niet geïdentificeerd. Aanwezigheid werd niet geregistreerd."
+    );
+
+    return;
+  }
+
+
+  actieBezig =
+    true;
+
+
+  const knop =
+    document.getElementById(
+      "volgendKnop"
+    );
+
+
+  const status =
+    document.getElementById(
+      "status"
+    );
+
+
+  if (knop) {
+
+    knop.disabled =
+      true;
+
+    knop.textContent =
+      "REGISTREREN...";
+  }
+
+
+  jsonpTeller++;
+
+
+  const callbackNaam =
+    "bthAbonnementCallback_" +
+    Date.now() +
+    "_" +
+    jsonpTeller;
+
+
+  let afgehandeld =
+    false;
+
+
+  const script =
+    document.createElement(
+      "script"
+    );
+
+
+  function opruimen() {
+
+    if (script.parentNode) {
+
+      script.parentNode.removeChild(
+        script
+      );
+    }
+
+
+    try {
+
+      delete window[
+        callbackNaam
+      ];
+
+    } catch (fout) {
+
+      window[
+        callbackNaam
+      ] = undefined;
+    }
+  }
+
+
+  window[callbackNaam] =
+    function(resultaat) {
+
+      if (afgehandeld) {
+        return;
+      }
+
+
+      afgehandeld =
+        true;
+
+
+      opruimen();
+
+
+      actieBezig =
+        false;
+
+
+      if (
+        !resultaat ||
+        resultaat.ok !== true
+      ) {
+
+        if (knop) {
+
+          knop.disabled =
+            false;
+
+          knop.textContent =
+            "VOLGEND LID";
+        }
+
+
+        toonFout(
+          resultaat &&
+          resultaat.fout
+            ? veilig(
+                resultaat.fout
+              )
+            : "Aanwezigheid kon niet worden geregistreerd."
+        );
+
+
+        return;
+      }
+
+
+      huidigLidGeregistreerd =
+        true;
+
+
+      if (status) {
+
+        status.innerHTML +=
+          '<div class="actieMelding">' +
+            '✓ Aanwezigheid geregistreerd.' +
+          '</div>';
+      }
+
+
+      if (knop) {
+
+        knop.disabled =
+          true;
+
+        knop.textContent =
+          "GEREGISTREERD";
+      }
+
+
+      /*
+        Kort bevestigen en daarna
+        automatisch camera opnieuw openen.
+      */
+
+      setTimeout(
+        function() {
+
+          startCamera();
+
+        },
+
+        700
+      );
+    };
+
+
+  script.onerror =
+    function() {
+
+      if (afgehandeld) {
+        return;
+      }
+
+
+      afgehandeld =
+        true;
+
+
+      opruimen();
+
+
+      actieBezig =
+        false;
+
+
+      if (knop) {
+
+        knop.disabled =
+          false;
+
+        knop.textContent =
+          "VOLGEND LID";
+      }
+
+
+      toonFout(
+        "Geen antwoord ontvangen. Controleer eerst het tabblad Aanwezigheden voordat je opnieuw probeert."
+      );
+    };
+
+
+  script.src =
+    API_URL +
+    "?api=abonnement" +
+
+    "&row=" +
+    encodeURIComponent(
+      huidigLid.row
+    ) +
+
+    "&trainerNaam=" +
+    encodeURIComponent(
+      trainerNaam
+    ) +
+
+    "&callback=" +
+    encodeURIComponent(
+      callbackNaam
+    ) +
+
+    "&_=" +
+    Date.now();
+
+
+  document.body.appendChild(
+    script
+  );
+
+
+  setTimeout(
+    function() {
+
+      if (afgehandeld) {
+        return;
+      }
+
+
+      afgehandeld =
+        true;
+
+
+      opruimen();
+
+
+      actieBezig =
+        false;
+
+
+      if (knop) {
+
+        knop.disabled =
+          false;
+
+        knop.textContent =
+          "VOLGEND LID";
+      }
+
+
+      toonFout(
+        "Geen antwoord ontvangen. Controleer eerst het tabblad Aanwezigheden voordat je opnieuw probeert."
+      );
+    },
+
     10000
   );
 }
@@ -1168,6 +1763,38 @@ function trekBeurtAf(row) {
 ===================================================== */
 
 function volgendLid() {
+
+  /*
+    ABONNEMENT:
+
+    Eerst registreren.
+    Pas na succesvolle registratie
+    gaat de camera opnieuw open.
+  */
+
+  if (
+    huidigLid &&
+    huidigLid.type ===
+      "Abonnement" &&
+    !huidigLidGeregistreerd
+  ) {
+
+    registreerAbonnementEnGaVerder();
+
+    return;
+  }
+
+
+  /*
+    BEURTENKAART:
+
+    De aanwezigheid werd reeds
+    geregistreerd tijdens het
+    aftrekken van de beurt.
+
+    Andere gevallen:
+    gewoon terug naar camera.
+  */
 
   startCamera();
 }
@@ -1193,6 +1820,7 @@ function toonFout(tekst) {
     '<div class="statusTitel">' +
       'Scannerfout' +
     '</div>' +
+
     '<div>' +
       tekst +
     '</div>';
