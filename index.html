@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="nl">
+
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -14,6 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <style>
+
     body {
       margin: 0;
       padding: 0;
@@ -130,28 +133,58 @@
 
     .status {
       margin-top: 15px;
-      padding: 16px;
+      padding: 18px;
       border-radius: 12px;
       background: #e8e8e8;
       word-break: break-word;
+      text-align: left;
     }
 
     .gevonden {
       background: #e1f5e5;
       color: #155724;
-      text-align: left;
+    }
+
+    .waarschuwing {
+      background: #fff3cd;
+      color: #664d03;
     }
 
     .fout {
       background: #ffe2e2;
       color: #8b0000;
-      text-align: left;
     }
 
     .statusTitel {
-      font-size: 20px;
+      font-size: 21px;
       font-weight: bold;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
+    }
+
+    .lidnummer {
+      font-size: 15px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .lidnaam {
+      font-size: 23px;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    .regel {
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+
+    .label {
+      font-weight: bold;
+    }
+
+    .laden {
+      text-align: center;
+      color: #555;
     }
 
     #volgendKnop {
@@ -164,8 +197,18 @@
       color: #222;
       font-size: 14px;
     }
+
+    #bridge {
+      display: none;
+      width: 1px;
+      height: 1px;
+      border: 0;
+    }
+
   </style>
+
 </head>
+
 
 <body>
 
@@ -175,7 +218,10 @@
 
     <h1>BTH Trainer Scanner</h1>
 
-    <!-- TRAINER -->
+
+    <!-- =====================================
+         TRAINER
+    ====================================== -->
 
     <div id="loginScherm">
 
@@ -201,7 +247,9 @@
     </div>
 
 
-    <!-- SCANNER -->
+    <!-- =====================================
+         SCANNER
+    ====================================== -->
 
     <div id="scannerScherm">
 
@@ -213,6 +261,7 @@
         class="trainerNaam"
         id="actieveTrainer">
       </div>
+
 
       <div
         class="cameraBox"
@@ -229,11 +278,14 @@
 
       </div>
 
+
       <canvas id="canvas"></canvas>
+
 
       <div class="cameraTekst">
         Houd de QR-code van het lid in het kader.
       </div>
+
 
       <div
         class="status"
@@ -241,11 +293,13 @@
         Camera wordt gestart...
       </div>
 
+
       <button
         id="volgendKnop"
         onclick="volgendLid()">
         VOLGEND LID
       </button>
+
 
       <button
         class="wijzig"
@@ -260,19 +314,45 @@
 </div>
 
 
+<!--
+  Verborgen verbinding met Apps Script.
+  Deze iframe gebruikt GEEN camera.
+-->
+
+<iframe
+  id="bridge"
+  src="https://script.google.com/macros/s/AKfycbymCwS5CKRtUK7Vl0e7Gx_C3EWIhsUa-JSXGFDG8hjt2gl1u7Q_ew8WqkO24XAMevui/exec?bridge=1">
+</iframe>
+
+
 <script>
+
+
+/* =====================================================
+   INSTELLINGEN
+===================================================== */
 
 const TRAINER_STORAGE =
   "bth_trainerNaam_v9";
 
+const BRIDGE_URL =
+  "https://script.google.com/macros/s/AKfycbymCwS5CKRtUK7Vl0e7Gx_C3EWIhsUa-JSXGFDG8hjt2gl1u7Q_ew8WqkO24XAMevui/exec?bridge=1";
+
+
 let cameraStream = null;
+
 let scannerActief = false;
+
 let qrVerwerkt = false;
 
+let bridgeKlaar = false;
 
-/* ========================================
+let wachtendRequest = null;
+
+
+/* =====================================================
    TRAINER
-======================================== */
+===================================================== */
 
 function bewaarTrainer() {
 
@@ -281,6 +361,7 @@ function bewaarTrainer() {
       .getElementById("trainerNaam")
       .value
       .trim();
+
 
   if (!naam) {
 
@@ -291,12 +372,16 @@ function bewaarTrainer() {
     return;
   }
 
+
   localStorage.setItem(
     TRAINER_STORAGE,
     naam
   );
 
-  toonScanner(naam);
+
+  toonScanner(
+    naam
+  );
 }
 
 
@@ -306,13 +391,16 @@ function toonScanner(naam) {
     .getElementById("loginScherm")
     .style.display = "none";
 
+
   document
     .getElementById("scannerScherm")
     .style.display = "block";
 
+
   document
     .getElementById("actieveTrainer")
     .textContent = naam;
+
 
   startCamera();
 }
@@ -322,17 +410,21 @@ async function wijzigTrainer() {
 
   stopCamera();
 
+
   localStorage.removeItem(
     TRAINER_STORAGE
   );
+
 
   document
     .getElementById("scannerScherm")
     .style.display = "none";
 
+
   document
     .getElementById("loginScherm")
     .style.display = "block";
+
 
   document
     .getElementById("trainerNaam")
@@ -340,38 +432,49 @@ async function wijzigTrainer() {
 }
 
 
-/* ========================================
+/* =====================================================
    CAMERA
-======================================== */
+===================================================== */
 
 async function startCamera() {
 
   stopCamera();
 
+
   qrVerwerkt = false;
 
+
   const status =
-    document.getElementById("status");
+    document.getElementById(
+      "status"
+    );
+
 
   const volgendKnop =
-    document.getElementById("volgendKnop");
+    document.getElementById(
+      "volgendKnop"
+    );
 
-  status.className = "status";
+
+  status.className =
+    "status";
+
 
   status.innerHTML =
     "Camera wordt gestart...";
+
 
   volgendKnop.style.display =
     "none";
 
 
-  if (typeof jsQR === "undefined") {
+  if (
+    typeof jsQR === "undefined"
+  ) {
 
-    status.className =
-      "status fout";
-
-    status.innerHTML =
-      "<strong>QR-scanner kon niet worden geladen.</strong>";
+    toonFout(
+      "QR-scanner kon niet worden geladen."
+    );
 
     return;
   }
@@ -380,36 +483,44 @@ async function startCamera() {
   try {
 
     cameraStream =
-      await navigator.mediaDevices.getUserMedia({
+      await navigator
+        .mediaDevices
+        .getUserMedia({
 
-        video: {
-          facingMode: {
-            ideal: "environment"
+          video: {
+
+            facingMode: {
+              ideal: "environment"
+            },
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 720
+            }
           },
 
-          width: {
-            ideal: 1280
-          },
-
-          height: {
-            ideal: 720
-          }
-        },
-
-        audio: false
-      });
+          audio: false
+        });
 
 
     const video =
-      document.getElementById("camera");
+      document.getElementById(
+        "camera"
+      );
+
 
     video.srcObject =
       cameraStream;
 
+
     await video.play();
 
 
-    scannerActief = true;
+    scannerActief =
+      true;
 
 
     status.innerHTML =
@@ -423,41 +534,49 @@ async function startCamera() {
 
   } catch (fout) {
 
-    scannerActief = false;
+    scannerActief =
+      false;
 
-    status.className =
-      "status fout";
 
-    status.innerHTML =
-      "<strong>Camera kon niet worden geopend.</strong><br><br>" +
+    toonFout(
+      "Camera kon niet worden geopend.<br><br>" +
       veilig(
         (fout.name || "") +
         " - " +
         (fout.message || String(fout))
-      );
+      )
+    );
   }
 }
 
 
 function stopCamera() {
 
-  scannerActief = false;
+  scannerActief =
+    false;
 
 
   if (cameraStream) {
 
     cameraStream
       .getTracks()
-      .forEach(function(track) {
-        track.stop();
-      });
+      .forEach(
+        function(track) {
+          track.stop();
+        }
+      );
 
-    cameraStream = null;
+
+    cameraStream =
+      null;
   }
 
 
   const video =
-    document.getElementById("camera");
+    document.getElementById(
+      "camera"
+    );
+
 
   if (video) {
     video.srcObject = null;
@@ -465,9 +584,9 @@ function stopCamera() {
 }
 
 
-/* ========================================
+/* =====================================================
    QR ZOEKEN
-======================================== */
+===================================================== */
 
 function scanFrame() {
 
@@ -475,16 +594,21 @@ function scanFrame() {
     !scannerActief ||
     qrVerwerkt
   ) {
-
     return;
   }
 
 
   const video =
-    document.getElementById("camera");
+    document.getElementById(
+      "camera"
+    );
+
 
   const canvas =
-    document.getElementById("canvas");
+    document.getElementById(
+      "canvas"
+    );
+
 
   const context =
     canvas.getContext(
@@ -557,9 +681,9 @@ function scanFrame() {
 }
 
 
-/* ========================================
+/* =====================================================
    QR GEVONDEN
-======================================== */
+===================================================== */
 
 function qrGevonden(inhoud) {
 
@@ -568,47 +692,453 @@ function qrGevonden(inhoud) {
   }
 
 
-  qrVerwerkt = true;
+  qrVerwerkt =
+    true;
+
 
   stopCamera();
 
 
+  const row =
+    haalRijUitQr(
+      inhoud
+    );
+
+
+  if (!row) {
+
+    toonFout(
+      "Deze QR-code is geen geldige BTH leden-QR."
+    );
+
+
+    document
+      .getElementById(
+        "volgendKnop"
+      )
+      .style.display =
+        "block";
+
+
+    return;
+  }
+
+
   const status =
-    document.getElementById("status");
+    document.getElementById(
+      "status"
+    );
 
 
   status.className =
-    "status gevonden";
+    "status";
 
 
   status.innerHTML =
-
-    '<div class="statusTitel">' +
-      '✓ QR HERKEND' +
-    '</div>' +
-
-    '<div>' +
-      'De QR-code werd correct gelezen.' +
-    '</div>' +
-
-    '<div style="margin-top:12px;">' +
-      '<strong>Inhoud:</strong>' +
-    '</div>' +
-
-    '<div>' +
-      veilig(inhoud) +
+    '<div class="laden">' +
+      '<strong>Lidgegevens ophalen...</strong>' +
+      '<br><br>' +
+      'Even geduld.' +
     '</div>';
 
 
-  document
-    .getElementById("volgendKnop")
-    .style.display = "block";
+  vraagLidOp(
+    row
+  );
 }
 
 
-/* ========================================
+/* =====================================================
+   RIJNUMMER UIT QR HALEN
+===================================================== */
+
+function haalRijUitQr(inhoud) {
+
+  try {
+
+    const url =
+      new URL(inhoud);
+
+
+    /*
+      Alleen QR-codes met een row parameter
+      worden aanvaard.
+    */
+
+    const row =
+      Number(
+        url.searchParams.get(
+          "row"
+        )
+      );
+
+
+    if (
+      !Number.isInteger(row) ||
+      row < 2
+    ) {
+
+      return null;
+    }
+
+
+    return row;
+
+
+  } catch (fout) {
+
+    return null;
+  }
+}
+
+
+/* =====================================================
+   BRIDGE
+===================================================== */
+
+window.addEventListener(
+  "message",
+  function(event) {
+
+    const bericht =
+      event.data;
+
+
+    if (!bericht) {
+      return;
+    }
+
+
+    if (
+      bericht.type ===
+      "BTH_BRIDGE_KLAAR"
+    ) {
+
+      bridgeKlaar =
+        true;
+
+      return;
+    }
+
+
+    if (
+      bericht.type ===
+      "BTH_LID_ANTWOORD"
+    ) {
+
+      if (
+        !wachtendRequest ||
+        bericht.requestId !==
+          wachtendRequest.requestId
+      ) {
+
+        return;
+      }
+
+
+      const resultaat =
+        bericht.resultaat;
+
+
+      wachtendRequest =
+        null;
+
+
+      if (
+        !resultaat ||
+        resultaat.ok !== true
+      ) {
+
+        toonFout(
+          resultaat &&
+          resultaat.fout
+            ? resultaat.fout
+            : "Lidgegevens konden niet worden opgehaald."
+        );
+
+
+        document
+          .getElementById(
+            "volgendKnop"
+          )
+          .style.display =
+            "block";
+
+
+        return;
+      }
+
+
+      toonLid(
+        resultaat
+      );
+    }
+  }
+);
+
+
+/* =====================================================
+   LID OPVRAGEN
+===================================================== */
+
+function vraagLidOp(row) {
+
+  const bridge =
+    document.getElementById(
+      "bridge"
+    );
+
+
+  if (
+    !bridge ||
+    !bridge.contentWindow
+  ) {
+
+    toonFout(
+      "Geen verbinding met de ledenlijst."
+    );
+
+    return;
+  }
+
+
+  const requestId =
+    String(Date.now()) +
+    "-" +
+    String(
+      Math.random()
+    );
+
+
+  wachtendRequest = {
+    requestId:
+      requestId,
+    row:
+      row
+  };
+
+
+  /*
+    We sturen het bericht naar de iframe.
+
+    De Bridge controleert zelf of het
+    bericht van onze GitHub-site komt.
+  */
+
+  bridge.contentWindow.postMessage(
+    {
+      type:
+        "BTH_LID_OPVRAGEN",
+
+      requestId:
+        requestId,
+
+      row:
+        row
+    },
+
+    "*"
+  );
+
+
+  /*
+    Als de bridge nog bezig was met laden,
+    proberen we na een korte wachttijd
+    nog één keer.
+  */
+
+  if (!bridgeKlaar) {
+
+    setTimeout(
+      function() {
+
+        if (
+          wachtendRequest &&
+          wachtendRequest.requestId ===
+            requestId
+        ) {
+
+          bridge.contentWindow.postMessage(
+            {
+              type:
+                "BTH_LID_OPVRAGEN",
+
+              requestId:
+                requestId,
+
+              row:
+                row
+            },
+
+            "*"
+          );
+        }
+      },
+
+      1200
+    );
+  }
+
+
+  /*
+    Timeout zodat de scanner niet
+    eindeloos op 'laden' blijft staan.
+  */
+
+  setTimeout(
+    function() {
+
+      if (
+        wachtendRequest &&
+        wachtendRequest.requestId ===
+          requestId
+      ) {
+
+        wachtendRequest =
+          null;
+
+
+        toonFout(
+          "Geen antwoord van de ledenlijst. Probeer opnieuw."
+        );
+
+
+        document
+          .getElementById(
+            "volgendKnop"
+          )
+          .style.display =
+            "block";
+      }
+    },
+
+    8000
+  );
+}
+
+
+/* =====================================================
+   LID TONEN
+===================================================== */
+
+function toonLid(lid) {
+
+  const status =
+    document.getElementById(
+      "status"
+    );
+
+
+  /*
+    Voor deze eerste test:
+    'Nog geen betaling ontvangen'
+    krijgt rood.
+
+    We registreren of mailen hier
+    bewust nog NIETS.
+  */
+
+  const nietBetaald =
+    String(
+      lid.geldigheid || ""
+    )
+      .toLowerCase()
+      .includes(
+        "nog geen betaling ontvangen"
+      );
+
+
+  if (nietBetaald) {
+
+    status.className =
+      "status fout";
+
+  } else {
+
+    status.className =
+      "status gevonden";
+  }
+
+
+  let html = "";
+
+
+  html +=
+    '<div class="lidnummer">' +
+      veilig(
+        lid.lidnummer
+      ) +
+    '</div>';
+
+
+  html +=
+    '<div class="lidnaam">' +
+      veilig(
+        lid.volledigeNaam
+      ) +
+    '</div>';
+
+
+  html +=
+    '<div class="regel">' +
+      '<span class="label">Type:</span> ' +
+      veilig(
+        lid.type
+      ) +
+    '</div>';
+
+
+  if (
+    lid.type ===
+    "Beurtenkaart"
+  ) {
+
+    html +=
+      '<div class="regel">' +
+        '<span class="label">Resterende beurten:</span> ' +
+        veilig(
+          lid.beurten
+        ) +
+      '</div>';
+
+  } else {
+
+    html +=
+      '<div class="regel">' +
+        '<span class="label">Geldigheid:</span> ' +
+        veilig(
+          lid.geldigheid ||
+          "Niet ingevuld"
+        ) +
+      '</div>';
+  }
+
+
+  if (nietBetaald) {
+
+    html +=
+      '<div class="regel" style="margin-top:14px;font-weight:bold;">' +
+        '⚠ Nog geen betaling ontvangen.' +
+      '</div>';
+  }
+
+
+  status.innerHTML =
+    html;
+
+
+  document
+    .getElementById(
+      "volgendKnop"
+    )
+    .style.display =
+      "block";
+}
+
+
+/* =====================================================
    VOLGEND LID
-======================================== */
+===================================================== */
 
 function volgendLid() {
 
@@ -616,25 +1146,57 @@ function volgendLid() {
 }
 
 
-/* ========================================
+/* =====================================================
+   FOUT
+===================================================== */
+
+function toonFout(tekst) {
+
+  const status =
+    document.getElementById(
+      "status"
+    );
+
+
+  status.className =
+    "status fout";
+
+
+  status.innerHTML =
+    '<div class="statusTitel">' +
+      'Scannerfout' +
+    '</div>' +
+    '<div>' +
+      tekst +
+    '</div>';
+}
+
+
+/* =====================================================
    VEILIGE TEKST
-======================================== */
+===================================================== */
 
 function veilig(tekst) {
 
   const div =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
+
 
   div.textContent =
-    String(tekst || "");
+    String(
+      tekst || ""
+    );
+
 
   return div.innerHTML;
 }
 
 
-/* ========================================
+/* =====================================================
    START
-======================================== */
+===================================================== */
 
 window.addEventListener(
   "load",
