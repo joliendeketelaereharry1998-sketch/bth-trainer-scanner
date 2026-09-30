@@ -197,14 +197,6 @@
       color: #222;
       font-size: 14px;
     }
-
-    #bridge {
-      display: none;
-      width: 1px;
-      height: 1px;
-      border: 0;
-    }
-
   </style>
 
 </head>
@@ -314,17 +306,6 @@
 </div>
 
 
-<!--
-  Verborgen verbinding met Apps Script.
-  Deze iframe gebruikt GEEN camera.
--->
-
-<iframe
-  id="bridge"
-  src="https://script.google.com/macros/s/AKfycbymCwS5CKRtUK7Vl0e7Gx_C3EWIhsUa-JSXGFDG8hjt2gl1u7Q_ew8WqkO24XAMevui/exec?bridge=1">
-</iframe>
-
-
 <script>
 
 
@@ -335,9 +316,8 @@
 const TRAINER_STORAGE =
   "bth_trainerNaam_v9";
 
-const BRIDGE_URL =
-  "https://script.google.com/macros/s/AKfycbymCwS5CKRtUK7Vl0e7Gx_C3EWIhsUa-JSXGFDG8hjt2gl1u7Q_ew8WqkO24XAMevui/exec?bridge=1";
-
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbymCwS5CKRtUK7Vl0e7Gx_C3EWIhsUa-JSXGFDG8hjt2gl1u7Q_ew8WqkO24XAMevui/exec";
 
 let cameraStream = null;
 
@@ -345,9 +325,7 @@ let scannerActief = false;
 
 let qrVerwerkt = false;
 
-let bridgeKlaar = false;
-
-let wachtendRequest = null;
+let jsonpTeller = 0;
 
 
 /* =====================================================
@@ -793,55 +771,48 @@ function haalRijUitQr(inhoud) {
 
 
 /* =====================================================
-   BRIDGE
+   LID OPVRAGEN VIA JSONP
 ===================================================== */
 
-window.addEventListener(
-  "message",
-  function(event) {
+function vraagLidOp(row) {
 
-    const bericht =
-      event.data;
+  jsonpTeller++;
 
+  const callbackNaam =
+    "bthLidCallback_" +
+    Date.now() +
+    "_" +
+    jsonpTeller;
 
-    if (!bericht) {
-      return;
+  let afgehandeld = false;
+
+  const script =
+    document.createElement("script");
+
+  function opruimen() {
+
+    if (script.parentNode) {
+      script.parentNode.removeChild(script);
     }
 
-
-    if (
-      bericht.type ===
-      "BTH_BRIDGE_KLAAR"
-    ) {
-
-      bridgeKlaar =
-        true;
-
-      return;
+    try {
+      delete window[callbackNaam];
+    } catch (fout) {
+      window[callbackNaam] = undefined;
     }
+  }
 
 
-    if (
-      bericht.type ===
-      "BTH_LID_ANTWOORD"
-    ) {
+  window[callbackNaam] =
+    function(resultaat) {
 
-      if (
-        !wachtendRequest ||
-        bericht.requestId !==
-          wachtendRequest.requestId
-      ) {
-
+      if (afgehandeld) {
         return;
       }
 
+      afgehandeld = true;
 
-      const resultaat =
-        bericht.resultaat;
-
-
-      wachtendRequest =
-        null;
+      opruimen();
 
 
       if (
@@ -850,169 +821,79 @@ window.addEventListener(
       ) {
 
         toonFout(
-          resultaat &&
-          resultaat.fout
-            ? resultaat.fout
+          resultaat && resultaat.fout
+            ? veilig(resultaat.fout)
             : "Lidgegevens konden niet worden opgehaald."
         );
 
-
         document
-          .getElementById(
-            "volgendKnop"
-          )
-          .style.display =
-            "block";
-
+          .getElementById("volgendKnop")
+          .style.display = "block";
 
         return;
       }
 
 
-      toonLid(
-        resultaat
+      toonLid(resultaat);
+    };
+
+
+  script.onerror =
+    function() {
+
+      if (afgehandeld) {
+        return;
+      }
+
+      afgehandeld = true;
+
+      opruimen();
+
+      toonFout(
+        "De ledenlijst kon niet worden bereikt. Probeer opnieuw."
       );
-    }
-  }
-);
+
+      document
+        .getElementById("volgendKnop")
+        .style.display = "block";
+    };
 
 
-/* =====================================================
-   LID OPVRAGEN
-===================================================== */
-
-function vraagLidOp(row) {
-
-  const bridge =
-    document.getElementById(
-      "bridge"
-    );
-
-
-  if (
-    !bridge ||
-    !bridge.contentWindow
-  ) {
-
-    toonFout(
-      "Geen verbinding met de ledenlijst."
-    );
-
-    return;
-  }
+  script.src =
+    API_URL +
+    "?api=lid" +
+    "&row=" +
+    encodeURIComponent(row) +
+    "&callback=" +
+    encodeURIComponent(callbackNaam) +
+    "&_=" +
+    Date.now();
 
 
-  const requestId =
-    String(Date.now()) +
-    "-" +
-    String(
-      Math.random()
-    );
+  document.body.appendChild(script);
 
-
-  wachtendRequest = {
-    requestId:
-      requestId,
-    row:
-      row
-  };
-
-
-  /*
-    We sturen het bericht naar de iframe.
-
-    De Bridge controleert zelf of het
-    bericht van onze GitHub-site komt.
-  */
-
-  bridge.contentWindow.postMessage(
-    {
-      type:
-        "BTH_LID_OPVRAGEN",
-
-      requestId:
-        requestId,
-
-      row:
-        row
-    },
-
-    "*"
-  );
-
-
-  /*
-    Als de bridge nog bezig was met laden,
-    proberen we na een korte wachttijd
-    nog één keer.
-  */
-
-  if (!bridgeKlaar) {
-
-    setTimeout(
-      function() {
-
-        if (
-          wachtendRequest &&
-          wachtendRequest.requestId ===
-            requestId
-        ) {
-
-          bridge.contentWindow.postMessage(
-            {
-              type:
-                "BTH_LID_OPVRAGEN",
-
-              requestId:
-                requestId,
-
-              row:
-                row
-            },
-
-            "*"
-          );
-        }
-      },
-
-      1200
-    );
-  }
-
-
-  /*
-    Timeout zodat de scanner niet
-    eindeloos op 'laden' blijft staan.
-  */
 
   setTimeout(
     function() {
 
-      if (
-        wachtendRequest &&
-        wachtendRequest.requestId ===
-          requestId
-      ) {
-
-        wachtendRequest =
-          null;
-
-
-        toonFout(
-          "Geen antwoord van de ledenlijst. Probeer opnieuw."
-        );
-
-
-        document
-          .getElementById(
-            "volgendKnop"
-          )
-          .style.display =
-            "block";
+      if (afgehandeld) {
+        return;
       }
+
+      afgehandeld = true;
+
+      opruimen();
+
+      toonFout(
+        "Geen antwoord van de ledenlijst. Probeer opnieuw."
+      );
+
+      document
+        .getElementById("volgendKnop")
+        .style.display = "block";
     },
 
-    8000
+    10000
   );
 }
 
