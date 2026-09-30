@@ -10,6 +10,9 @@
 
   <title>BTH Trainer Scanner</title>
 
+  <!-- QR herkenning -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
   <style>
     body {
       margin: 0;
@@ -68,6 +71,7 @@
       color: white;
       font-size: 18px;
       font-weight: bold;
+      cursor: pointer;
     }
 
     #scannerScherm {
@@ -86,18 +90,73 @@
       margin-bottom: 20px;
     }
 
-    #camera {
+    .cameraBox {
+      position: relative;
       width: 100%;
+      overflow: hidden;
       border-radius: 14px;
       background: #111;
+    }
+
+    #camera {
+      display: block;
+      width: 100%;
       min-height: 280px;
+      object-fit: cover;
+    }
+
+    .scanKader {
+      position: absolute;
+      width: 65%;
+      aspect-ratio: 1 / 1;
+      max-height: 80%;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      border: 4px solid white;
+      border-radius: 16px;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+
+    #canvas {
+      display: none;
+    }
+
+    .cameraTekst {
+      margin-top: 12px;
+      color: #555;
     }
 
     .status {
       margin-top: 15px;
-      padding: 15px;
-      border-radius: 10px;
+      padding: 16px;
+      border-radius: 12px;
       background: #e8e8e8;
+      word-break: break-word;
+    }
+
+    .gevonden {
+      background: #e1f5e5;
+      color: #155724;
+      text-align: left;
+    }
+
+    .fout {
+      background: #ffe2e2;
+      color: #8b0000;
+      text-align: left;
+    }
+
+    .statusTitel {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    #volgendKnop {
+      display: none;
+      background: #222;
     }
 
     .wijzig {
@@ -116,7 +175,7 @@
 
     <h1>BTH Trainer Scanner</h1>
 
-    <!-- TRAINERNAAM -->
+    <!-- TRAINER -->
 
     <div id="loginScherm">
 
@@ -142,7 +201,7 @@
     </div>
 
 
-    <!-- CAMERA -->
+    <!-- SCANNER -->
 
     <div id="scannerScherm">
 
@@ -155,18 +214,38 @@
         id="actieveTrainer">
       </div>
 
-      <video
-        id="camera"
-        autoplay
-        playsinline
-        muted>
-      </video>
+      <div
+        class="cameraBox"
+        id="cameraBox">
+
+        <video
+          id="camera"
+          autoplay
+          playsinline
+          muted>
+        </video>
+
+        <div class="scanKader"></div>
+
+      </div>
+
+      <canvas id="canvas"></canvas>
+
+      <div class="cameraTekst">
+        Houd de QR-code van het lid in het kader.
+      </div>
 
       <div
         class="status"
         id="status">
         Camera wordt gestart...
       </div>
+
+      <button
+        id="volgendKnop"
+        onclick="volgendLid()">
+        VOLGEND LID
+      </button>
 
       <button
         class="wijzig"
@@ -187,11 +266,13 @@ const TRAINER_STORAGE =
   "bth_trainerNaam_v9";
 
 let cameraStream = null;
+let scannerActief = false;
+let qrVerwerkt = false;
 
 
-/* ===============================
+/* ========================================
    TRAINER
-================================ */
+======================================== */
 
 function bewaarTrainer() {
 
@@ -259,17 +340,42 @@ async function wijzigTrainer() {
 }
 
 
-/* ===============================
-   CAMERA TEST
-================================ */
+/* ========================================
+   CAMERA
+======================================== */
 
 async function startCamera() {
+
+  stopCamera();
+
+  qrVerwerkt = false;
 
   const status =
     document.getElementById("status");
 
-  status.textContent =
+  const volgendKnop =
+    document.getElementById("volgendKnop");
+
+  status.className = "status";
+
+  status.innerHTML =
     "Camera wordt gestart...";
+
+  volgendKnop.style.display =
+    "none";
+
+
+  if (typeof jsQR === "undefined") {
+
+    status.className =
+      "status fout";
+
+    status.innerHTML =
+      "<strong>QR-scanner kon niet worden geladen.</strong>";
+
+    return;
+  }
+
 
   try {
 
@@ -279,6 +385,14 @@ async function startCamera() {
         video: {
           facingMode: {
             ideal: "environment"
+          },
+
+          width: {
+            ideal: 1280
+          },
+
+          height: {
+            ideal: 720
           }
         },
 
@@ -295,17 +409,27 @@ async function startCamera() {
     await video.play();
 
 
-    status.textContent =
-      "✓ Camera werkt. QR-scanner volgt in de volgende stap.";
+    scannerActief = true;
+
+
+    status.innerHTML =
+      "Zoeken naar QR-code...";
+
+
+    requestAnimationFrame(
+      scanFrame
+    );
 
 
   } catch (fout) {
 
-    console.error(fout);
+    scannerActief = false;
+
+    status.className =
+      "status fout";
 
     status.innerHTML =
       "<strong>Camera kon niet worden geopend.</strong><br><br>" +
-      "Technische fout: " +
       veilig(
         (fout.name || "") +
         " - " +
@@ -317,6 +441,9 @@ async function startCamera() {
 
 function stopCamera() {
 
+  scannerActief = false;
+
+
   if (cameraStream) {
 
     cameraStream
@@ -327,12 +454,171 @@ function stopCamera() {
 
     cameraStream = null;
   }
+
+
+  const video =
+    document.getElementById("camera");
+
+  if (video) {
+    video.srcObject = null;
+  }
 }
 
 
-/* ===============================
+/* ========================================
+   QR ZOEKEN
+======================================== */
+
+function scanFrame() {
+
+  if (
+    !scannerActief ||
+    qrVerwerkt
+  ) {
+
+    return;
+  }
+
+
+  const video =
+    document.getElementById("camera");
+
+  const canvas =
+    document.getElementById("canvas");
+
+  const context =
+    canvas.getContext(
+      "2d",
+      {
+        willReadFrequently: true
+      }
+    );
+
+
+  if (
+    video.readyState ===
+    video.HAVE_ENOUGH_DATA
+  ) {
+
+    canvas.width =
+      video.videoWidth;
+
+    canvas.height =
+      video.videoHeight;
+
+
+    context.drawImage(
+      video,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+
+    const imageData =
+      context.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+
+    const code =
+      jsQR(
+        imageData.data,
+        imageData.width,
+        imageData.height,
+        {
+          inversionAttempts:
+            "dontInvert"
+        }
+      );
+
+
+    if (
+      code &&
+      code.data
+    ) {
+
+      qrGevonden(
+        code.data
+      );
+
+      return;
+    }
+  }
+
+
+  requestAnimationFrame(
+    scanFrame
+  );
+}
+
+
+/* ========================================
+   QR GEVONDEN
+======================================== */
+
+function qrGevonden(inhoud) {
+
+  if (qrVerwerkt) {
+    return;
+  }
+
+
+  qrVerwerkt = true;
+
+  stopCamera();
+
+
+  const status =
+    document.getElementById("status");
+
+
+  status.className =
+    "status gevonden";
+
+
+  status.innerHTML =
+
+    '<div class="statusTitel">' +
+      '✓ QR HERKEND' +
+    '</div>' +
+
+    '<div>' +
+      'De QR-code werd correct gelezen.' +
+    '</div>' +
+
+    '<div style="margin-top:12px;">' +
+      '<strong>Inhoud:</strong>' +
+    '</div>' +
+
+    '<div>' +
+      veilig(inhoud) +
+    '</div>';
+
+
+  document
+    .getElementById("volgendKnop")
+    .style.display = "block";
+}
+
+
+/* ========================================
+   VOLGEND LID
+======================================== */
+
+function volgendLid() {
+
+  startCamera();
+}
+
+
+/* ========================================
    VEILIGE TEKST
-================================ */
+======================================== */
 
 function veilig(tekst) {
 
@@ -346,9 +632,9 @@ function veilig(tekst) {
 }
 
 
-/* ===============================
+/* ========================================
    START
-================================ */
+======================================== */
 
 window.addEventListener(
   "load",
@@ -359,8 +645,12 @@ window.addEventListener(
         TRAINER_STORAGE
       );
 
+
     if (bestaandeNaam) {
-      toonScanner(bestaandeNaam);
+
+      toonScanner(
+        bestaandeNaam
+      );
     }
   }
 );
