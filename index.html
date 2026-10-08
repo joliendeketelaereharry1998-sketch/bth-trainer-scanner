@@ -31,12 +31,38 @@ function startLogin(){const naam=el('trainerNaam').value.trim();if(!naam){alert(
 function andereTrainer(){if(bezig)return;stopCamera();localStorage.removeItem(STORAGE);el('scannerScherm').style.display='none';el('loginScherm').style.display='block';el('trainerNaam').value='';}
 async function verwerkQr(tekst){const row=rijUitQr(tekst);if(!row){setStatus('Geen geldige BTH leden-QR.','error');toonVolgend(true);return;}setStatus('<b>Lidgegevens ophalen...</b>');try{const r=await api({api:'lid',row});if(!r||!r.ok)throw Error(r&&r.fout||'Lid niet gevonden');huidig=r;if(r.alGeregistreerd){toonDubbel(r);return;}if(r.type==='Abonnement'){await registreerAbonnement();return;}toonBeurt(r);}catch(e){setStatus('Lid kon niet worden opgehaald: '+esc(e.message),'error');toonVolgend(true);}}
 function groepHtml(r){return '<div class="groep">GROEP: '+esc(r.groep||'Niet ingevuld')+'</div>';}
-function toonDubbel(r){el('cameraBox').style.display='none';el('cameraTekst').style.display='none';setStatus('<div class="headline">LID VANDAAG AL GEREGISTREERD</div><div class="naam">'+esc(r.volledigeNaam)+'</div><div>'+esc(r.lidnummer)+'</div>'+groepHtml(r)+'<p>Er is geen nieuwe aanwezigheid toegevoegd en geen extra beurt afgetrokken.</p>','warn');toonVolgend(true);}
+function adminProblemen(r){
+  const verzekering=String(r.verzekering||'').trim().toLowerCase();
+  const betaling=String(r.geldigheid||'').trim().toLowerCase();
+  return {
+    verzekering:!verzekering||verzekering==='nee'||verzekering.includes('nog geen betaling ontvangen'),
+    betaling:betaling.includes('nog geen betaling ontvangen')
+  };
+}
+function toonDubbel(r){
+  el('cameraBox').style.display='none';
+  el('cameraTekst').style.display='none';
+  const lid={...(huidig||{}),...r};
+  const fouten=adminProblemen(lid);
+  const identiteit='<div class="naam">'+esc(lid.volledigeNaam)+'</div><div>'+esc(lid.lidnummer)+'</div>'+groepHtml(lid);
+  let waarschuwingen='';
+  if(fouten.verzekering)waarschuwingen+='<div class="probleem">✖ VERZEKERING NIET IN ORDE</div>';
+  if(fouten.betaling)waarschuwingen+='<div class="probleem">✖ LIDGELD NIET BETAALD</div>';
+  const dubbel='<div class="headline">LID VANDAAG AL GEREGISTREERD</div>'+identiteit+
+    '<p><b>✓ Aanwezigheid staat vandaag al geregistreerd.</b></p>'+
+    '<p>Geen tweede aanwezigheid toegevoegd en geen extra beurt afgetrokken.</p>';
+  if(waarschuwingen){
+    setStatus('<div class="headline">⚠ LID NIET IN ORDE!</div>'+dubbel+waarschuwingen,'alert');
+  }else{
+    setStatus(dubbel,'ok');
+  }
+  toonVolgend(true);
+}
 function toonBeurt(r){setStatus('<div class="small">'+esc(r.lidnummer)+'</div><div class="naam">'+esc(r.volledigeNaam)+'</div>'+groepHtml(r)+'<div class="detail">Beurtenkaart · resterend: <b>'+esc(r.beurten)+'</b></div><div class="detail">Vervaldatum: '+esc(r.vervaldatum||'Niet ingevuld')+'</div><label for="trainerCode">Trainer code</label><input id="trainerCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Trainer code"><button id="beurtKnop">1 BEURT AFTREKKEN</button>','ok');el('beurtKnop').addEventListener('click',registreerBeurt);toonVolgend(false);}
 async function registreerBeurt(){if(bezig||!huidig)return;const code=el('trainerCode').value.trim();if(!code){alert('Vul de trainer code in.');return;}bezig=true;el('beurtKnop').disabled=true;setStatus('<b>Beurt wordt verwerkt...</b><p>Niet vernieuwen of opnieuw drukken.</p>');await registreer({api:'beurt',row:huidig.row,code:code,trainerNaam:trainer()},'beurt');}
 async function registreerAbonnement(){if(bezig||!huidig)return;bezig=true;setStatus('<b>Aanwezigheid wordt geregistreerd...</b>');await registreer({api:'abonnement',row:huidig.row,trainerNaam:trainer()},'abonnement');}
 async function registreer(params,soort){try{const r=await api(params,35000);if(!r||!r.ok){if(r&&r.onzeker){await controleerStatus(soort);return;}bezig=false;setStatus('<b>Registratie geweigerd.</b><p>'+esc(r&&r.fout||'Onbekende fout')+'</p><p>Geen automatische nieuwe poging.</p>','error');toonVolgend(true);return;}bezig=false;if(r.alGeregistreerd){toonDubbel({...huidig,...r});return;}toonSucces(r,soort);}catch(e){await controleerStatus(soort);}}
-async function controleerStatus(soort){setStatus('<b>Antwoord vertraagd.</b><p>We controleren of de registratie al is uitgevoerd. Druk nergens opnieuw op.</p>','warn');try{const r=await api({api:'status',row:huidig.row},35000);bezig=false;if(r&&r.ok&&r.geregistreerd){toonSucces({volledigeNaam:r.volledigeNaam,lidnummer:r.lidnummer,resterend:r.resterend,alGeregistreerd:false},soort);return;}setStatus('<b>Registratie niet bevestigd.</b><p>Controleer in Google Sheets de aanwezigheid en het saldo vóór je opnieuw probeert.</p>','error');toonVolgend(true);}catch(e){bezig=false;setStatus('<b>Geen verbinding.</b><p>De registratie kan wel uitgevoerd zijn. Controleer eerst het tabblad Aanwezigheden en bij beurtenkaart kolom X. Niet opnieuw aftrekken.</p>','error');toonVolgend(true);}}
+async function controleerStatus(soort){setStatus('<b>Antwoord vertraagd.</b><p>We controleren of de registratie al is uitgevoerd. Druk nergens opnieuw op.</p>','warn');try{const r=await api({api:'status',row:huidig.row},35000);bezig=false;if(r&&r.ok&&r.geregistreerd){toonDubbel({...huidig,...r});return;}setStatus('<b>Registratie niet bevestigd.</b><p>Controleer in Google Sheets de aanwezigheid en het saldo vóór je opnieuw probeert.</p>','error');toonVolgend(true);}catch(e){bezig=false;setStatus('<b>Geen verbinding.</b><p>De registratie kan wel uitgevoerd zijn. Controleer eerst het tabblad Aanwezigheden en bij beurtenkaart kolom X. Niet opnieuw aftrekken.</p>','error');toonVolgend(true);}}
 function toonSucces(r,soort){
   el('cameraBox').style.display='none';
   el('cameraTekst').style.display='none';
