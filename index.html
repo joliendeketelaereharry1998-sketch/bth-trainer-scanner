@@ -10,7 +10,7 @@
 <div id="scannerScherm"><p class="small" style="text-align:center">Ingelogde trainer</p><div id="actieveTrainer" style="text-align:center;font-weight:bold;margin-bottom:15px"></div>
 <div id="cameraBox" class="cameraBox"><video id="camera" autoplay playsinline muted></video><div class="kader"></div></div><canvas id="canvas"></canvas>
 <p id="cameraTekst" class="small" style="text-align:center">Houd de QR-code in het kader.</p><div id="status" class="status">Camera wordt gestart...</div>
-<button id="volgendKnop">VOLGEND LID</button><button id="wijzigKnop" class="secondary">Andere trainer</button></div></div></div>
+<button id="testVerbinding" class="secondary" type="button">TEST VERBINDING (zonder registratie)</button><button id="volgendKnop">VOLGEND LID</button><button id="wijzigKnop" class="secondary">Andere trainer</button></div></div></div>
 <script>
 'use strict';
 const API_URL='https://script.google.com/macros/s/AKfycbz0W49kPn8Y_3MN2pHVjD-iYwpgLg1w25XStb04Vgv8/exec';
@@ -89,6 +89,22 @@ function toonSucces(r,soort){
   }
   toonVolgend(true);
 }
+// Veilige verbindingstest: uitsluitend api=lid, geen aanwezigheid of beurtenaftrek.
+async function testBthVerbinding(){
+  const knop=el('testVerbinding');knop.disabled=true;
+  setStatus('<b>Verbinding testen...</b><p>Er wordt niets geregistreerd.</p>');
+  try {
+    const resultaat=await api({api:'lid',lidnummer:'BTH032'},20000);
+    if(resultaat&&resultaat.ok&&resultaat.lidnummer==='BTH032'){
+      setStatus('<b>✓ Verbinding werkt!</b><p>Lidnummer: '+esc(resultaat.lidnummer)+'</p><p>Naam: '+esc(resultaat.volledigeNaam)+'</p><p>Geen aanwezigheid geregistreerd.</p>','ok');
+    } else {
+      setStatus('<b>API gaf een antwoord, maar geen geldig lid.</b><p>'+esc(JSON.stringify(resultaat))+'</p>','error');
+    }
+  }catch(fout){
+    setStatus('<b>Verbindingstest mislukt.</b><p>'+esc(fout.message)+'</p><p>Google Apps Script: '+esc(API_URL)+'</p><p>Er is niets geregistreerd.</p>','error');
+  }finally{knop.disabled=false;}
+}
+el('testVerbinding').addEventListener('click',testBthVerbinding);
 el('startKnop').addEventListener('click',startLogin);el('volgendKnop').addEventListener('click',()=>{if(!bezig)startCamera();});el('wijzigKnop').addEventListener('click',andereTrainer);
 window.addEventListener('load',()=>{const naam=trainer();if(naam){el('loginScherm').style.display='none';el('scannerScherm').style.display='block';el('actieveTrainer').textContent=naam;startCamera();}});
 // Verwijder oude PWA-worker en cache zodat trainers geen verouderde versie blijven zien.
