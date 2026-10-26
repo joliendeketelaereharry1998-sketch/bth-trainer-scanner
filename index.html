@@ -35,8 +35,8 @@ function adminProblemen(r){
   const verzekering=String(r.verzekering||'').trim().toLowerCase();
   const betaling=String(r.geldigheid||'').trim().toLowerCase();
   return {
-    verzekering:!verzekering||verzekering==='nee'||verzekering.includes('nog geen betaling ontvangen'),
-    betaling:betaling.includes('nog geen betaling ontvangen')
+    verzekering:verzekering!=='ja',
+    betaling:!betaling||betaling.includes('nog geen betaling ontvangen')
   };
 }
 function toonDubbel(r){
@@ -70,8 +70,8 @@ function toonSucces(r,soort){
   const verzekering=String(lid.verzekering||'').trim().toLowerCase();
   const betaling=String(lid.geldigheid||'').trim().toLowerCase();
   // Dezelfde betaalwaarschuwingen als de bestaande werkende mailfunctie in Apps Script.
-  const verzekeringFout=!verzekering||verzekering==='nee'||verzekering.includes('nog geen betaling ontvangen');
-  const betalingFout=betaling.includes('nog geen betaling ontvangen');
+  const verzekeringFout=verzekering!=='ja';
+  const betalingFout=!betaling||betaling.includes('nog geen betaling ontvangen');
   const kop=soort==='beurt'?'BEURT AFGETROKKEN!':'AANWEZIGHEID GEREGISTREERD!';
   let extra=soort==='beurt'?'<div class="balance">Resterende beurten: '+esc(r.resterend)+'</div>':'';
   if(soort==='beurt'&&r.vorig!=null)extra+='<div class="detail">Van '+esc(r.vorig)+' naar '+esc(r.resterend)+'</div>';
