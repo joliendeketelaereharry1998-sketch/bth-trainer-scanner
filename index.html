@@ -29,7 +29,7 @@ function api(params,timeout=30000){return new Promise((resolve,reject)=>{const c
 function trainer(){return (localStorage.getItem(STORAGE)||'').trim();}
 function startLogin(){const naam=el('trainerNaam').value.trim();if(!naam){alert('Vul je voornaam en naam in.');return;}localStorage.setItem(STORAGE,naam);el('loginScherm').style.display='none';el('scannerScherm').style.display='block';el('actieveTrainer').textContent=naam;startCamera();}
 function andereTrainer(){if(bezig)return;stopCamera();localStorage.removeItem(STORAGE);el('scannerScherm').style.display='none';el('loginScherm').style.display='block';el('trainerNaam').value='';}
-async function verwerkQr(tekst){const lidnummer=lidUitQr(tekst);if(!lidnummer){setStatus('Geen geldige BTH leden-QR.','error');toonVolgend(true);return;}setStatus('<b>Lidgegevens ophalen...</b>');try{const r=await api({api:'lid',lidnummer});if(!r||!r.ok)throw Error(r&&r.fout||'Lid niet gevonden');huidig=r;if(r.alGeregistreerd){toonDubbel(r);return;}if(r.type==='Abonnement'){await registreerAbonnement();return;}toonBeurt(r);}catch(e){setStatus('Lid kon niet worden opgehaald: '+esc(e.message),'error');toonVolgend(true);}}
+async function verwerkQr(tekst){const lidnummer=lidUitQr(tekst);if(!lidnummer){setStatus('Geen geldige BTH leden-QR.','error');toonVolgend(true);return;}setStatus('<b>Lidgegevens ophalen...</b>');try{const r=await api({api:'scan',lidnummer});if(!r||!r.ok)throw Error(r&&r.fout||'Lid niet gevonden');huidig=r;if(r.trainingWeigeren){toonTrainingWeigeren(r);return;}if(r.alGeregistreerd){toonDubbel(r);return;}if(r.type==='Abonnement'){await registreerAbonnement();return;}toonBeurt(r);}catch(e){setStatus('Lid kon niet worden opgehaald: '+esc(e.message),'error');toonVolgend(true);}}
 function groepHtml(r){return '<div class="groep">GROEP: '+esc(r.groep||'Niet ingevuld')+'</div>';}
 function adminProblemen(r){
   const verzekering=String(r.verzekering||'').trim().toLowerCase();
@@ -38,6 +38,23 @@ function adminProblemen(r){
     verzekering:verzekering!=='ja',
     betaling:!betaling||betaling.includes('nog geen betaling ontvangen')
   };
+}
+function toonTrainingWeigeren(r){
+  el('cameraBox').style.display='none';
+  el('cameraTekst').style.display='none';
+  const fouten=adminProblemen(r);
+  let problemen='';
+  if(fouten.verzekering)problemen+='<div class="probleem">✖ VERZEKERING NIET IN ORDE</div>';
+  if(fouten.betaling)problemen+='<div class="probleem">✖ LIDGELD NIET BETAALD</div>';
+  const inhoud='<div class="headline">⛔ TRAINING WEIGEREN</div>'+
+    '<div class="naam">'+esc(r.volledigeNaam)+'</div><div>'+esc(r.lidnummer)+'</div>'+groepHtml(r)+
+    '<p><b>Dit lid is al minstens twee keer gescand terwijl de betaling niet in orde was.</b></p>'+
+    problemen+'<p><b>NIET LATEN DEELNEMEN. Stuur het lid naar boven om de betaling in orde te brengen.</b></p>'+
+    '<p>Bij deze scan is geen aanwezigheid geregistreerd en geen beurt afgetrokken.</p>'+
+    '<button type="button" id="bevestigWeigering">BEGREPEN</button>';
+  setStatus(inhoud,'alert');
+  toonVolgend(false);
+  el('bevestigWeigering').addEventListener('click',()=>toonVolgend(true));
 }
 function toonDubbel(r){
   el('cameraBox').style.display='none';
@@ -58,7 +75,7 @@ function toonDubbel(r){
   }
   toonVolgend(true);
 }
-function toonBeurt(r){setStatus('<div class="small">'+esc(r.lidnummer)+'</div><div class="naam">'+esc(r.volledigeNaam)+'</div>'+groepHtml(r)+'<div class="detail">Beurtenkaart · resterend: <b>'+esc(r.beurten)+'</b></div><div class="detail">Vervaldatum: '+esc(r.vervaldatum||'Niet ingevuld')+'</div><label for="trainerCode">Trainer code</label><input id="trainerCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Trainer code"><button id="beurtKnop">1 BEURT AFTREKKEN</button>','ok');el('beurtKnop').addEventListener('click',registreerBeurt);toonVolgend(false);}
+function toonBeurt(r){const fouten=adminProblemen(r);const waarschuwing=(fouten.verzekering||fouten.betaling)?'<div class="probleem">⚠ VERZEKERING OF LIDGELD NIET IN ORDE — EERSTE WAARSCHUWING</div>':'';setStatus(waarschuwing+'<div class="small">'+esc(r.lidnummer)+'</div><div class="naam">'+esc(r.volledigeNaam)+'</div>'+groepHtml(r)+'<div class="detail">Beurtenkaart · resterend: <b>'+esc(r.beurten)+'</b></div><div class="detail">Vervaldatum: '+esc(r.vervaldatum||'Niet ingevuld')+'</div><label for="trainerCode">Trainer code</label><input id="trainerCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Trainer code"><button id="beurtKnop">1 BEURT AFTREKKEN</button>','ok');el('beurtKnop').addEventListener('click',registreerBeurt);toonVolgend(false);}
 async function registreerBeurt(){if(bezig||!huidig)return;const code=el('trainerCode').value.trim();if(!code){alert('Vul de trainer code in.');return;}bezig=true;el('beurtKnop').disabled=true;setStatus('<b>Beurt wordt verwerkt...</b><p>Niet vernieuwen of opnieuw drukken.</p>');await registreer({api:'beurt',lidnummer:huidig.lidnummer,code:code,trainerNaam:trainer()},'beurt');}
 async function registreerAbonnement(){if(bezig||!huidig)return;bezig=true;setStatus('<b>Aanwezigheid wordt geregistreerd...</b>');await registreer({api:'abonnement',lidnummer:huidig.lidnummer,trainerNaam:trainer()},'abonnement');}
 async function registreer(params,soort){try{const r=await api(params,35000);if(!r||!r.ok){if(r&&r.onzeker){await controleerStatus(soort);return;}bezig=false;setStatus('<b>Registratie geweigerd.</b><p>'+esc(r&&r.fout||'Onbekende fout')+'</p><p>Geen automatische nieuwe poging.</p>','error');toonVolgend(true);return;}bezig=false;if(r.alGeregistreerd){toonDubbel({...huidig,...r});return;}toonSucces(r,soort);}catch(e){await controleerStatus(soort);}}
