@@ -122,11 +122,11 @@ async function testBthVerbinding(){
   }finally{knop.disabled=false;}
 }
 
-// De QR-herzendfunctie is voorlopig alleen een zoekinterface. De serverkant
+// QR-herzendfunctie gebruikt beveiligde Apps Script-koppeling. De serverkant
 // moet eerst een gecontroleerde zoek- en verzendroute krijgen; geen mail via GitHub.
 function toonQrPaneel(){stopCamera();el('cameraBox').style.display='none';el('cameraTekst').style.display='none';el('qrPaneel').style.display='block';el('openQrPaneel').style.display='none';el('qrResultaat').textContent='Zoek eerst het lid. Verzenden wordt pas geactiveerd na de beveiligde Apps Script-koppeling.';}
 function sluitQrPaneel(){el('qrPaneel').style.display='none';el('openQrPaneel').style.display='block';startCamera();}
-function zoekQrLid(){const zoek=el('qrZoekterm').value.trim();if(!zoek){el('qrResultaat').textContent='Vul een lidnummer of naam in.';return;}el('qrResultaat').textContent='Zoeken en opnieuw versturen zijn nog niet actief. Eerst moet de Apps Script-koppeling worden toegevoegd, inclusief registratie in Aanwezigheden.';}
+async function zoekQrLid(){const zoek=el('qrZoekterm').value.trim();if(!zoek){el('qrResultaat').textContent='Vul een lidnummer of naam in.';return;}const code=prompt('Vul de trainercode in om leden te zoeken:');if(code===null)return;el('qrResultaat').textContent='Leden zoeken...';try{const r=await api({api:'qrzoeken',zoekterm:zoek,code,trainerNaam:trainer()});if(!r||!r.ok)throw Error(r&&r.fout||'Zoeken mislukt');const vak=el('qrResultaat');vak.innerHTML='';if(!r.leden.length){vak.textContent='Geen leden gevonden.';return;}r.leden.forEach(lid=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=lid.volledigeNaam+' ('+lid.lidnummer+') — QR versturen';b.onclick=async()=>{if(!confirm('QR-code opnieuw versturen naar het geregistreerde e-mailadres van '+lid.volledigeNaam+'?'))return;b.disabled=true;vak.insertAdjacentText('beforeend',' Verzenden...');try{const antwoord=await api({api:'qrherzend',lidnummer:lid.lidnummer,code,trainerNaam:trainer()},45000);if(!antwoord||!antwoord.ok)throw Error(antwoord&&antwoord.fout||'Verzenden mislukt');vak.textContent=antwoord.melding||'QR-code verstuurd.';}catch(e){vak.textContent='Niet verzonden: '+e.message;}};vak.appendChild(b);});}catch(e){el('qrResultaat').textContent='Zoeken mislukt: '+e.message;}}
 el('openQrPaneel').addEventListener('click',toonQrPaneel);
 el('qrSluitKnop').addEventListener('click',sluitQrPaneel);
 el('qrZoekKnop').addEventListener('click',zoekQrLid);
